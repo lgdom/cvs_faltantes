@@ -33,16 +33,24 @@ def cargar_datos():
             df_cli = pd.read_csv(FILE_CLIENTES, encoding='utf-8')
             
         df_cli.columns = df_cli.columns.str.strip().str.upper()
+        
+        # --- CORRECCIÓN AQUÍ ---
+        # 1. Primero buscamos la columna del CÓDIGO (buscando "CLAVE" o "CODIGO")
         col_clave = next((c for c in df_cli.columns if 'CLAVE' in c or 'CODIGO' in c), df_cli.columns[0])
-        col_nombre = next((c for c in df_cli.columns if 'CLIENTE' in c or 'NOMBRE' in c), df_cli.columns[1])
-                
+        
+        # 2. Luego buscamos la columna del NOMBRE, pero EXCLUYENDO la que ya detectamos como clave
+        col_nombre = next((c for c in df_cli.columns if ('CLIENTE' in c or 'NOMBRE' in c) and c != col_clave), df_cli.columns[1])
+        # -----------------------
+        
         df_cli = df_cli[[col_clave, col_nombre]].copy()
         df_cli.columns = ['CODIGO', 'NOMBRE']
-        # Corrección: Convertimos ambas columnas a texto (.astype(str)) para evitar errores
+        
+        # Convertimos a texto para evitar errores de suma y mostramos "CÓDIGO - NOMBRE"
         df_cli['DISPLAY'] = df_cli['CODIGO'].astype(str) + " - " + df_cli['NOMBRE'].astype(str)
-
+        
     except Exception as e:
         errores.append(f"⚠️ Error leyendo Clientes: {e}")
+
 
     # 2. CARGAR PRODUCTOS
     try:
