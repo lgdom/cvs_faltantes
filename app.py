@@ -100,13 +100,13 @@ tab1, tab2 = st.tabs(["1. Registrar Faltantes", "2. Descargar Excel"])
 with tab1:
     # --- FUNCIONES CALLBACK (Lógica de limpieza) ---
     def agregar_producto():
-        # Recuperamos valores directamente del estado
+        # Recuperamos valores
         cliente = st.session_state.cliente_box
-        prod_str = st.session_state.prod_box
+        prod_str = st.session_state.prod_box # Este es el valor del Selectbox único
         cant = st.session_state.qty_box
         
         if cliente and prod_str:
-            # Buscar datos del producto
+            # Buscar datos
             row = df_productos[df_productos['SEARCH_INDEX'] == prod_str].iloc[0]
             item = {
                 "CODIGO": row['CODIGO'],
@@ -117,10 +117,9 @@ with tab1:
             }
             st.session_state.carrito.append(item)
             
-            # LIMPIEZA: Esto sí funciona aquí porque ocurre antes de recargar
-            st.session_state.search_box = ""  # Limpiar buscador
-            st.session_state.qty_box = 1      # Reiniciar cantidad
-            # No limpiamos cliente_box aquí para que puedas seguir agregando productos al mismo cliente
+            # LIMPIEZA:
+            st.session_state.qty_box = 1      
+            st.session_state.prod_box = None  # <--- ESTO REINICIA EL BUSCADOR AL FINAL
         else:
             st.warning("⚠️ Selecciona Cliente y Producto primero")
 
@@ -166,28 +165,22 @@ with tab1:
         st.divider()
         st.subheader("Agregar Producto")
         
-        # B. BUSCADOR (Con key)
-        query = st.text_input("Buscar:", placeholder="Ej: Paracetamol...", key="search_box").upper()
-        
-        opciones_filtradas = []
-        if query:
-            mask = df_productos['SEARCH_INDEX'].str.contains(query, na=False)
-            opciones_filtradas = df_productos[mask]['SEARCH_INDEX'].head(50).tolist()
-        
-        # C. SELECTOR PRODUCTO (Con key='prod_box')
+        # B. BUSCADOR UNIFICADO (Tipo Google)
+        # Cargamos TODAS las opciones. Streamlit filtra solo al escribir.
         st.selectbox(
-            "Selecciona Presentación:", 
-            options=opciones_filtradas, 
-            placeholder="Elige de la lista filtrada...",
-            key="prod_box"
+            "Buscar Producto (Nombre, Clave o Sustancia):", 
+            options=df_productos['SEARCH_INDEX'], # Pasamos la lista completa
+            index=None, 
+            placeholder="Escribe para buscar...",
+            key="prod_box" # Esta key es la que limpiamos en el callback
         )
         
-        # D. CANTIDAD (Con key)
+        # C. CANTIDAD
         st.number_input("Cantidad:", min_value=1, value=1, key="qty_box")
         
-        # BOTÓN AGREGAR (Usa on_click para llamar a la función de arriba)
+        # BOTÓN AGREGAR
         st.button("➕ Agregar a la Lista", on_click=agregar_producto, use_container_width=True)
-
+        
     with col2:
         st.subheader("🛒 Lista Preliminar")
         
