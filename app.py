@@ -299,7 +299,7 @@ with tab2:
                 try:
                     img = Image(FILE_IMAGEN)
                     img.width = 270  
-                    img.height = 45
+                    img.height = 80
                     img.anchor = 'D1' 
                     ws.add_image(img)
                 except Exception as e:
