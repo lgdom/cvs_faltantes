@@ -65,23 +65,41 @@ def cargar_datos():
     except Exception as e:
         errores.append(f"⚠️ Error leyendo Clientes: {e}")
 
-
     # 2. CARGAR PRODUCTOS
     try:
+        # --- CORRECCIÓN DE ACENTOS AQUÍ ---
         try:
-            df_prod = pd.read_csv(FILE_PRODUCTOS, encoding='latin-1')
-        except:
+            # Intento 1: UTF-8 (Estándar moderno, ideal para acentos)
             df_prod = pd.read_csv(FILE_PRODUCTOS, encoding='utf-8')
+        except:
+            # Intento 2: Latin-1 (Estándar de Excel antiguo/Windows)
+            df_prod = pd.read_csv(FILE_PRODUCTOS, encoding='latin-1')
+        # ----------------------------------
             
         df_prod.columns = df_prod.columns.str.strip().str.upper()
+        
+        # Detección de columnas
         col_clave = next(c for c in df_prod.columns if 'CLAVE' in c or 'CODIGO' in c)
         col_desc = next(c for c in df_prod.columns if 'NOMBRE' in c or 'DESCRIPCION' in c)
-        col_sust = next(c for c in df_prod.columns if 'SUSTANCIA' in c)
+        # Buscamos sustancia (si no existe, no falla, devuelve None)
+        col_sust = next((c for c in df_prod.columns if 'SUSTANCIA' in c), None)
         
-        df_prod = df_prod[[col_clave, col_desc, col_sust]].copy()
-        df_prod.columns = ['CODIGO', 'DESCRIPCION', 'SUSTANCIA']
-        df_prod['SUSTANCIA'] = df_prod['SUSTANCIA'].fillna('---')
+        cols_to_keep = [col_clave, col_desc]
+        if col_sust: cols_to_keep.append(col_sust)
+            
+        df_prod = df_prod[cols_to_keep].copy()
+        
+        # Renombrar estándar
+        nombres_std = ['CODIGO', 'DESCRIPCION']
+        if col_sust: nombres_std.append('SUSTANCIA')
+        df_prod.columns = nombres_std
+        
+        if 'SUSTANCIA' not in df_prod.columns:
+            df_prod['SUSTANCIA'] = '---'
+        else:
+            df_prod['SUSTANCIA'] = df_prod['SUSTANCIA'].fillna('---')
 
+        # Índice de Búsqueda
         df_prod['SEARCH_INDEX'] = (
             df_prod['CODIGO'].astype(str) + " | " + 
             df_prod['DESCRIPCION'].astype(str) + " | " + 
@@ -280,7 +298,8 @@ with tab2:
                     # --- RE-INSERTAR IMAGEN ---
                 try:
                     img = Image(FILE_IMAGEN)
-                    # AJUSTA AQUÍ: ¿En qué celda empieza la imagen? (Ej. 'A1')
+                    img.width = 200  
+                    img.height = 80
                     img.anchor = 'D1' 
                     ws.add_image(img)
                 except Exception as e:
