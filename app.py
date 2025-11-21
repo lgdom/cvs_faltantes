@@ -102,24 +102,42 @@ with tab1:
     
     with col1:
         st.subheader("Datos del Pedido")
-        cliente_input = st.selectbox("Cliente:", options=df_clientes['DISPLAY'], index=None, placeholder="Escribe para buscar cliente...")
+        
+        # A. SELECCIÓN DE CLIENTE (Agregamos key='cliente_box')
+        cliente_input = st.selectbox(
+            "Cliente:", 
+            options=df_clientes['DISPLAY'], 
+            index=None, 
+            placeholder="Escribe para buscar cliente...",
+            key="cliente_box" 
+        )
         fecha_input = st.date_input("Fecha:", datetime.today())
         
         st.divider()
         st.subheader("Agregar Producto")
         
-        query = st.text_input("Buscar:", placeholder="Ej: Paracetamol, S020...").upper()
+        # B. BÚSQUEDA (Agregamos key='search_box')
+        query = st.text_input("Buscar:", placeholder="Ej: Paracetamol, S020...", key="search_box").upper()
+        
         opciones_filtradas = []
         if query:
             mask = df_productos['SEARCH_INDEX'].str.contains(query, na=False)
             opciones_filtradas = df_productos[mask]['SEARCH_INDEX'].head(50).tolist()
         
-        producto_seleccionado_str = st.selectbox("Selecciona Presentación:", options=opciones_filtradas, placeholder="Elige de la lista filtrada...")
-        cantidad = st.number_input("Cantidad:", min_value=1, value=1)
+        producto_seleccionado_str = st.selectbox(
+            "Selecciona Presentación:", 
+            options=opciones_filtradas, 
+            placeholder="Elige de la lista filtrada..."
+        )
         
+        # CANTIDAD (Agregamos key='qty_box')
+        cantidad = st.number_input("Cantidad:", min_value=1, value=1, key="qty_box")
+        
+        # BOTÓN AGREGAR
         if st.button("➕ Agregar a la Lista", use_container_width=True):
             if cliente_input and producto_seleccionado_str:
                 row = df_productos[df_productos['SEARCH_INDEX'] == producto_seleccionado_str].iloc[0]
+                
                 item = {
                     "CODIGO": row['CODIGO'],
                     "DESCRIPCION": row['DESCRIPCION'],
@@ -128,16 +146,24 @@ with tab1:
                     "O.C.": "N/A"
                 }
                 st.session_state.carrito.append(item)
-                st.success("Agregado")
+                
+                # --- LIMPIEZA AUTOMÁTICA DE CAMPOS ---
+                # Borramos el texto del buscador y reiniciamos la cantidad
+                # (Ojo: Streamlit requiere asignar el valor al session_state directamente)
+                st.session_state.search_box = ""  
+                st.session_state.qty_box = 1      
+                st.rerun() # Recargamos para que se vea vacío
+                
             else:
                 st.warning("⚠️ Selecciona Cliente y Producto primero")
 
     with col2:
         st.subheader("🛒 Lista Preliminar")
+        
         if st.session_state.carrito:
             df_cart = pd.DataFrame(st.session_state.carrito)
             
-            # --- AQUÍ ESTABA EL ERROR, ESTA ES LA VERSIÓN CORREGIDA ---
+            # TABLA EDITABLE CON OPCIÓN DE BORRAR
             df_edited = st.data_editor(
                 df_cart,
                 column_config={
@@ -146,13 +172,20 @@ with tab1:
                     "O.C.": st.column_config.TextColumn("O.C.", width="small")
                 },
                 use_container_width=True,
-                num_rows="dynamic"
+                num_rows="dynamic", # <--- ESTO HABILITA BORRAR FILAS (Selecciona la fila y dale Supr o usa el ícono)
+                key="editor_data"
             )
-            # ----------------------------------------------------------
             
+            # ACTUALIZAR CARRITO AL MOMENTO
+            # Esto es vital: si borras una línea en la tabla, actualizamos la memoria
+            # para que no vuelva a aparecer si agregas otro producto.
+            st.session_state.carrito = df_edited.to_dict('records')
+            
+            # BOTÓN FINALIZAR PEDIDO
             if st.button("💾 GUARDAR ESTE PEDIDO (Siguiente Hoja)", type="primary", use_container_width=True):
                 if cliente_input:
                     cod_cli, nom_cli = cliente_input.split(" - ", 1)
+                    
                     pedido_nuevo = {
                         "cli_cod": cod_cli,
                         "cli_nom": nom_cli,
@@ -160,13 +193,17 @@ with tab1:
                         "items": df_edited
                     }
                     st.session_state.pedidos.append(pedido_nuevo)
-                    st.session_state.carrito = []
+                    
+                    # --- LIMPIEZA TOTAL ---
+                    st.session_state.carrito = []       # Vaciar carrito
+                    st.session_state.cliente_box = None # Vaciar cliente
                     st.rerun()
-                    st.balloons()
+                    
                 else:
                     st.error("Falta seleccionar cliente")
         else:
             st.info("👈 Usa el panel izquierdo para buscar productos.")
+
 
 # === PESTAÑA 2: DESCARGA ===
 with tab2:
