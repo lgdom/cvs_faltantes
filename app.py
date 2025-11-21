@@ -98,64 +98,95 @@ tab1, tab2 = st.tabs(["1. Registrar Faltantes", "2. Descargar Excel"])
 
 # === PESTAÑA 1: REGISTRO ===
 with tab1:
+    # --- FUNCIONES CALLBACK (Lógica de limpieza) ---
+    def agregar_producto():
+        # Recuperamos valores directamente del estado
+        cliente = st.session_state.cliente_box
+        prod_str = st.session_state.prod_box
+        cant = st.session_state.qty_box
+        
+        if cliente and prod_str:
+            # Buscar datos del producto
+            row = df_productos[df_productos['SEARCH_INDEX'] == prod_str].iloc[0]
+            item = {
+                "CODIGO": row['CODIGO'],
+                "DESCRIPCION": row['DESCRIPCION'],
+                "SOLICITADA": cant,
+                "SURTIDO": 0,
+                "O.C.": "N/A"
+            }
+            st.session_state.carrito.append(item)
+            
+            # LIMPIEZA: Esto sí funciona aquí porque ocurre antes de recargar
+            st.session_state.search_box = ""  # Limpiar buscador
+            st.session_state.qty_box = 1      # Reiniciar cantidad
+            # No limpiamos cliente_box aquí para que puedas seguir agregando productos al mismo cliente
+        else:
+            st.warning("⚠️ Selecciona Cliente y Producto primero")
+
+    def finalizar_pedido(fecha):
+        if st.session_state.cliente_box:
+            cod_cli, nom_cli = st.session_state.cliente_box.split(" - ", 1)
+            
+            # Guardamos lo que esté en el editor de datos en ese momento
+            # Nota: st.session_state.editor_data contiene los cambios
+            # Reconstruimos el dataframe final desde el carrito actualizado
+            
+            pedido_nuevo = {
+                "cli_cod": cod_cli,
+                "cli_nom": nom_cli,
+                "fecha": fecha,
+                "items": pd.DataFrame(st.session_state.carrito) # Guardamos estado actual
+            }
+            st.session_state.pedidos.append(pedido_nuevo)
+            
+            # LIMPIEZA TOTAL
+            st.session_state.carrito = []
+            st.session_state.cliente_box = None # Limpiar cliente
+            st.session_state.search_box = ""
+        else:
+            st.error("Falta seleccionar cliente")
+
+    # --- INTERFAZ ---
     col1, col2 = st.columns([1, 2])
     
     with col1:
         st.subheader("Datos del Pedido")
         
-        # A. SELECCIÓN DE CLIENTE (Agregamos key='cliente_box')
-        cliente_input = st.selectbox(
+        # A. CLIENTE (Con key)
+        st.selectbox(
             "Cliente:", 
             options=df_clientes['DISPLAY'], 
             index=None, 
             placeholder="Escribe para buscar cliente...",
-            key="cliente_box" 
+            key="cliente_box"
         )
         fecha_input = st.date_input("Fecha:", datetime.today())
         
         st.divider()
         st.subheader("Agregar Producto")
         
-        # B. BÚSQUEDA (Agregamos key='search_box')
-        query = st.text_input("Buscar:", placeholder="Ej: Paracetamol, S020...", key="search_box").upper()
+        # B. BUSCADOR (Con key)
+        query = st.text_input("Buscar:", placeholder="Ej: Paracetamol...", key="search_box").upper()
         
         opciones_filtradas = []
         if query:
             mask = df_productos['SEARCH_INDEX'].str.contains(query, na=False)
             opciones_filtradas = df_productos[mask]['SEARCH_INDEX'].head(50).tolist()
         
-        producto_seleccionado_str = st.selectbox(
+        # C. SELECTOR PRODUCTO (Con key='prod_box')
+        st.selectbox(
             "Selecciona Presentación:", 
             options=opciones_filtradas, 
-            placeholder="Elige de la lista filtrada..."
+            placeholder="Elige de la lista filtrada...",
+            key="prod_box"
         )
         
-        # CANTIDAD (Agregamos key='qty_box')
-        cantidad = st.number_input("Cantidad:", min_value=1, value=1, key="qty_box")
+        # D. CANTIDAD (Con key)
+        st.number_input("Cantidad:", min_value=1, value=1, key="qty_box")
         
-        # BOTÓN AGREGAR
-        if st.button("➕ Agregar a la Lista", use_container_width=True):
-            if cliente_input and producto_seleccionado_str:
-                row = df_productos[df_productos['SEARCH_INDEX'] == producto_seleccionado_str].iloc[0]
-                
-                item = {
-                    "CODIGO": row['CODIGO'],
-                    "DESCRIPCION": row['DESCRIPCION'],
-                    "SOLICITADA": cantidad,
-                    "SURTIDO": 0,
-                    "O.C.": "N/A"
-                }
-                st.session_state.carrito.append(item)
-                
-                # --- LIMPIEZA AUTOMÁTICA DE CAMPOS ---
-                # Borramos el texto del buscador y reiniciamos la cantidad
-                # (Ojo: Streamlit requiere asignar el valor al session_state directamente)
-                st.session_state.search_box = ""  
-                st.session_state.qty_box = 1      
-                st.rerun() # Recargamos para que se vea vacío
-                
-            else:
-                st.warning("⚠️ Selecciona Cliente y Producto primero")
+        # BOTÓN AGREGAR (Usa on_click para llamar a la función de arriba)
+        st.button("➕ Agregar a la Lista", on_click=agregar_producto, use_container_width=True)
 
     with col2:
         st.subheader("🛒 Lista Preliminar")
@@ -163,7 +194,7 @@ with tab1:
         if st.session_state.carrito:
             df_cart = pd.DataFrame(st.session_state.carrito)
             
-            # TABLA EDITABLE CON OPCIÓN DE BORRAR
+            # TABLA EDITABLE
             df_edited = st.data_editor(
                 df_cart,
                 column_config={
@@ -172,38 +203,26 @@ with tab1:
                     "O.C.": st.column_config.TextColumn("O.C.", width="small")
                 },
                 use_container_width=True,
-                num_rows="dynamic", # <--- ESTO HABILITA BORRAR FILAS (Selecciona la fila y dale Supr o usa el ícono)
+                num_rows="dynamic",
                 key="editor_data"
             )
             
-            # ACTUALIZAR CARRITO AL MOMENTO
-            # Esto es vital: si borras una línea en la tabla, actualizamos la memoria
-            # para que no vuelva a aparecer si agregas otro producto.
-            st.session_state.carrito = df_edited.to_dict('records')
+            # Sincronizar cambios manuales de la tabla con el carrito en memoria
+            # Esto asegura que si editas un número en la tabla, se guarde bien.
+            if not df_edited.equals(df_cart):
+                st.session_state.carrito = df_edited.to_dict('records')
             
-            # BOTÓN FINALIZAR PEDIDO
-            if st.button("💾 GUARDAR ESTE PEDIDO (Siguiente Hoja)", type="primary", use_container_width=True):
-                if cliente_input:
-                    cod_cli, nom_cli = cliente_input.split(" - ", 1)
-                    
-                    pedido_nuevo = {
-                        "cli_cod": cod_cli,
-                        "cli_nom": nom_cli,
-                        "fecha": fecha_input,
-                        "items": df_edited
-                    }
-                    st.session_state.pedidos.append(pedido_nuevo)
-                    
-                    # --- LIMPIEZA TOTAL ---
-                    st.session_state.carrito = []       # Vaciar carrito
-                    st.session_state.cliente_box = None # Vaciar cliente
-                    st.rerun()
-                    
-                else:
-                    st.error("Falta seleccionar cliente")
+            # BOTÓN GUARDAR (Usa on_click y args para pasar la fecha)
+            st.button(
+                "💾 GUARDAR ESTE PEDIDO (Siguiente Hoja)", 
+                type="primary", 
+                use_container_width=True,
+                on_click=finalizar_pedido,
+                args=(fecha_input,)
+            )
+
         else:
             st.info("👈 Usa el panel izquierdo para buscar productos.")
-
 
 # === PESTAÑA 2: DESCARGA ===
 with tab2:
