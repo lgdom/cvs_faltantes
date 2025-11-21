@@ -35,11 +35,12 @@ def cargar_datos():
         df_cli.columns = df_cli.columns.str.strip().str.upper()
         col_clave = next((c for c in df_cli.columns if 'CLAVE' in c or 'CODIGO' in c), df_cli.columns[0])
         col_nombre = next((c for c in df_cli.columns if 'CLIENTE' in c or 'NOMBRE' in c), df_cli.columns[1])
-        
+                
         df_cli = df_cli[[col_clave, col_nombre]].copy()
         df_cli.columns = ['CODIGO', 'NOMBRE']
-        df_cli['DISPLAY'] = df_cli['CODIGO'].astype(str) + " - " + df_cli['NOMBRE']
-        
+        # Corrección: Convertimos ambas columnas a texto (.astype(str)) para evitar errores
+        df_cli['DISPLAY'] = df_cli['CODIGO'].astype(str) + " - " + df_cli['NOMBRE'].astype(str)
+
     except Exception as e:
         errores.append(f"⚠️ Error leyendo Clientes: {e}")
 
