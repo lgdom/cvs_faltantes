@@ -3,6 +3,7 @@ import pandas as pd
 import openpyxl
 from io import BytesIO
 from datetime import datetime
+from openpyxl.drawing.image import Image  # <--- NUEVO IMPORT
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Faltantes App", page_icon="📝", layout="wide")
@@ -11,6 +12,7 @@ st.set_page_config(page_title="Faltantes App", page_icon="📝", layout="wide")
 FILE_CLIENTES = 'clientes.csv'
 FILE_PRODUCTOS = 'productos.csv'
 FILE_PLANTILLA = 'plantilla.xlsx'
+FILE_IMAGEN = 'logo.png'
 
 # --- ESTADO DE LA APP ---
 if 'pedidos' not in st.session_state:
@@ -274,6 +276,15 @@ with tab2:
                     ws.cell(row=fila_inicial+idx, column=3, value=fila[2])
                     ws.cell(row=fila_inicial+idx, column=4, value=fila[3])
                     ws.cell(row=fila_inicial+idx, column=5, value=fila[4])
+                    
+                    # --- RE-INSERTAR IMAGEN ---
+                try:
+                    img = Image(FILE_IMAGEN)
+                    # AJUSTA AQUÍ: ¿En qué celda empieza la imagen? (Ej. 'A1')
+                    img.anchor = 'D1' 
+                    ws.add_image(img)
+                except Exception as e:
+                    print(f"No se pudo cargar la imagen en esta hoja: {e}")
             
             del wb['Base']
             buffer = BytesIO()
