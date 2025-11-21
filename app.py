@@ -298,8 +298,8 @@ with tab2:
                     # --- RE-INSERTAR IMAGEN ---
                 try:
                     img = Image(FILE_IMAGEN)
-                    img.width = 558  
-                    img.height = 75
+                    img.width = 270  
+                    img.height = 45
                     img.anchor = 'D1' 
                     ws.add_image(img)
                 except Exception as e:
